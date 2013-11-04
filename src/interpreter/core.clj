@@ -2,6 +2,9 @@
   (:gen-class)
   (:require [clojure.string :as str]))
 
+(def operator-map {"+" + "-" - "*" * "/" /})
+(def bool-map {"true" true "false" false})
+
 ; (defn vectorify
 ;   [tokens]
 ;   (loop [i 0
@@ -42,54 +45,34 @@
 ;; (defmulti name dispatch-fn & options)
 ;; (defmethod multifn dispatch-value & fn-tail)
 
-(defn is-operator?
-  [token]
-  (or (= token "+") (= token "-") (= token "*") (= token "/")))
+;; TAGGING
 
-(defn is-str-literal?
+(defn str-literal
   [token]
-  (and (= (first token) (char 34)) (= (last token) (char 34))))
+  (if (and (= (first token) (char 34)) (= (last token) (char 34)))
+    token))
 
-(defn is-num-literal?
+(defn num-literal
   [token]
   (try
     (Integer/parseInt token)
     (catch Exception e
-      false)))
+      nil)))
   
-(defn is-boolean?
+(defn tag
   [token]
-  (or (= token "false") (= token "true")))
-
-(defn get-token-type
-  [token]
+  (let [operator (operator-map token)
+        str-literal (str-literal token)
+        num-literal (num-literal token)
+        bool (bool-map token)]
   (cond
-    (is-operator? token) :operator
-    (is-str-literal? token) :str-literal
-    (is-num-literal? token) :num-literal
-    (is-boolean? token) :bool))
+    (not (nil? operator)) {:type :operator :value operator}
+    (not (nil? str-literal)) {:type :literal :value str-literal}
+    (not (nil? num-literal)) {:type :literal :value num-literal}
+    (not (nil? bool)) {:type :bool :value bool}
+    :else {:type :identifier :value token})))
 
-(defmulti tag get-token-type)
-
-(defmethod tag :operator
-  [token]
-  {:type :operator :value token})
-
-(defmethod tag :str-literal
-  [token]
-  {:type :literal :value token})
-
-(defmethod tag :num-literal
-  [token]
-  {:type :literal :value (is-num-literal? token)})
-
-(defmethod tag :default
-  [token]
-  {:type :identifier :value token})
-
-(defmethod tag :bool
-  [token]
-  {:type :bool :value token})
+;; TOKENIZING
 
 ;; basically implements the built-in "read-string" function
 ;; need to figure out error checking with parentheses
@@ -127,6 +110,10 @@
   [string]
   (let [spaced-out (remove-blanks (str/replace string #"[()]" #(str " " % " ")))]
     spaced-out))
+
+;; EVALUATING
+
+(defmulti evaluate :type)
 
 (defn -main
   "I don't do a whole lot ... yet."
