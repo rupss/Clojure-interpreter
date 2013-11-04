@@ -1,1 +1,1 @@
-Writing a Clojure interpreter in Clojure
+Writing a Lisp interpreter in Clojure

@@ -2,29 +2,6 @@
   (:gen-class)
   (:require [clojure.string :as str]))
 
-;; basically implements the built-in "read-string" function
-;; need to figure out error checking with parentheses
-(defn vectorify
-  [tokens]
-  (loop [i 0
-         stack []]
-   (if (and (>= i (count tokens))
-    (first stack)
-    (do (let [t (nth tokens i)]
-        (cond 
-          (= t "(") (recur (inc i) (into [] (cons [] stack)))
-            (= t ")")
-            (do (let [top-vec (first stack)
-                      stack (rest stack)]
-                  (if (empty? stack)
-                    top-vec
-                    (do (let [next-vec (first stack)
-                              stack (rest stack)]
-                          (recur (inc i) (into [] (cons (conj next-vec top-vec) stack))))))))
-            :else 
-            (do (let [curr-vec (first stack)]
-                (recur (inc i) (assoc stack 0 (into [] (conj curr-vec t))))))))))))
-
 ; (defn vectorify
 ;   [tokens]
 ;   (loop [i 0
@@ -62,7 +39,36 @@
 ;               (let [curr-vec (first stack)]
 ;                 (recur (inc i) (assoc stack 0 (into [] (conj curr-vec t))))))))))))
 
-  
+(defn tag
+  [token]
+  token)
+;; basically implements the built-in "read-string" function
+;; need to figure out error checking with parentheses
+;; not working from the terminal, but works in the REPL
+(defn vectorify
+  [tokens]
+  (loop [i 0
+         stack []]
+   (if (>= i (count tokens))
+     (do 
+       (if (= (last tokens) ")")
+        (first stack)
+        (do 
+          (println "ERROR")
+          (System/exit -1)))))
+    (do (let [t (nth tokens i)]
+        (cond 
+          (= t "(") (recur (inc i) (into [] (cons [] stack)))
+            (= t ")")
+            (do (let [top-vec (first stack)
+                      stack (rest stack)]
+                  (if (empty? stack)
+                    top-vec
+                    (do (let [next-vec (first stack) stack (rest stack)]
+                          (recur (inc i) (into [] (cons (conj next-vec top-vec) stack))))))))
+            :else 
+            (do (let [curr-vec (first stack)]
+                (recur (inc i) (assoc stack 0 (into [] (conj curr-vec (tag t))))))))))))
 
 (defn remove-blanks
   [string]
@@ -77,5 +83,5 @@
   "I don't do a whole lot ... yet."
   [& args]
   (println "Hello, World!")
-  (println (tokenize "(+ 1 2)")))
+  (println (vectorify (tokenize "(+ 1 2)"))))
 
