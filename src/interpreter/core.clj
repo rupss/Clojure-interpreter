@@ -39,9 +39,58 @@
 ;               (let [curr-vec (first stack)]
 ;                 (recur (inc i) (assoc stack 0 (into [] (conj curr-vec t))))))))))))
 
-(defn tag
+;; (defmulti name dispatch-fn & options)
+;; (defmethod multifn dispatch-value & fn-tail)
+
+(defn is-operator?
   [token]
-  token)
+  (or (= token "+") (= token "-") (= token "*") (= token "/")))
+
+(defn is-str-literal?
+  [token]
+  (and (= (first token) (char 34)) (= (last token) (char 34))))
+
+(defn is-num-literal?
+  [token]
+  (try
+    (Integer/parseInt token)
+    (catch Exception e
+      false)))
+  
+(defn is-boolean?
+  [token]
+  (or (= token "false") (= token "true")))
+
+(defn get-token-type
+  [token]
+  (cond
+    (is-operator? token) :operator
+    (is-str-literal? token) :str-literal
+    (is-num-literal? token) :num-literal
+    (is-boolean? token) :bool))
+
+(defmulti tag get-token-type)
+
+(defmethod tag :operator
+  [token]
+  {:type :operator :value token})
+
+(defmethod tag :str-literal
+  [token]
+  {:type :literal :value token})
+
+(defmethod tag :num-literal
+  [token]
+  {:type :literal :value (is-num-literal? token)})
+
+(defmethod tag :default
+  [token]
+  {:type :identifier :value token})
+
+(defmethod tag :bool
+  [token]
+  {:type :bool :value token})
+
 ;; basically implements the built-in "read-string" function
 ;; need to figure out error checking with parentheses
 ;; not working from the terminal, but works in the REPL
