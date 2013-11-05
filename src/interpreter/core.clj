@@ -113,7 +113,22 @@
 
 ;; EVALUATING
 
-(defmulti evaluate :type)
+(defn get-type
+  [expr]
+  (cond 
+    (= clojure.lang.PersistentVector (type expr)) :call
+    (= :literal (:type expr)) :literal))
+
+(defmulti evaluate get-type)
+
+(defmethod evaluate :call
+  [expr]
+  (let [function (first expr)]
+    (apply (function :value) (map #(evaluate %) (rest expr)))))
+
+(defmethod evaluate :literal
+  [expr]
+  (:value expr))
 
 (defn -main
   "I don't do a whole lot ... yet."
