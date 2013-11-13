@@ -143,17 +143,11 @@
           (= t "(") (recur (inc i) (into [] (cons [] stack)))
           (or (= t ")") (= t "]"))
             (do (let [top-vec (first stack)
-                      stack (rest stack)]
-                  (println "stack")
-                  (println stack)
+                      stack (rest stack)]                  
                   (if (empty? stack)
                     top-vec
                     (do (let [next-vec (first stack) stack (rest stack)]
-                          (println "next-vec")
-                          (println next-vec)
-                          (println "top-vec")
-                          (println top-vec)
-                          (recur (inc i) (into [] (cons (conj next-vec top-vec) stack))))))))
+                      (recur (inc i) (into [] (cons (insert-into-top next-vec top-vec) stack))))))))
           (= t "[") (recur (inc i) (into [] (cons {:type :list :value []} stack)))
           :else 
             (do (let [curr-struct (first stack)]
