@@ -18,46 +18,6 @@
   [item]
   (= clojure.lang.PersistentVector (type item)))
 
-; (defn vectorify
-;   [tokens]
-;   (loop [i 0
-;    stack []]
-;    (println "BEGINNING")
-
-;    (println "STACK")
-;    (println stack)
-;    (println "I = " i)
-
-;    (if (and (>= i (count tokens))
-;     (first stack)
-;     (do
-;       (let [t (nth tokens i)]
-;         (println t)
-;         (cond 
-;           (= t "(") (recur (inc i) (into [] (cons [] stack)))
-;             (= t ")")
-;             (do 
-;               (let [top-vec (first stack)]
-;                 (println "TOP-VEC " top-vec)
-;                 (let [stack (rest stack)]
-;                   (println "stack = " stack)
-;                   (if (empty? stack)
-;                     top-vec
-;                     (do
-;                       (let [next-vec (first stack)]
-;                         (println "stack before = " stack)
-;                         (println "NEXT_VEC " next-vec)
-;                         (let [stack (rest stack)]
-;                           (println "stack after  = " stack)
-;                           (recur (inc i) (into [] (cons (conj next-vec top-vec) stack))))))))))
-;             :else 
-;             (do 
-;               (let [curr-vec (first stack)]
-;                 (recur (inc i) (assoc stack 0 (into [] (conj curr-vec t))))))))))))
-
-;; (defmulti name dispatch-fn & options)
-;; (defmethod multifn dispatch-value & fn-tail)
-
 ;; TAGGING
 
 (defn str-literal
@@ -112,16 +72,6 @@
   [curr-struct tagged-item]
   (assoc curr-struct :value (conj (curr-struct :value) tagged-item)))
 
-(defmulti my-conj get-struct-type)
-
-(defmethod my-conj :vector
-  [curr-struct to-add]
-  (conj curr-struct to-add))
-
-(defmethod my-conj :vector
-  [curr-struct to-add]
-  )
-
 ;; basically implements the built-in "read-string" function
 ;; need to figure out error checking with parentheses
 ;; not working from the terminal, but works in the REPL
@@ -137,8 +87,6 @@
           (println "ERROR")
           (System/exit -1)))))
     (do (let [t (nth tokens i)]
-         (println "token")
-         (println t)
         (cond 
           (= t "(") (recur (inc i) (into [] (cons [] stack)))
           (or (= t ")") (= t "]"))
@@ -185,4 +133,16 @@
 (defmethod evaluate :list
   [expr]
   (map #(evaluate %) (:value expr)))
+
+(defn -main
+  [& args]
+  (println "Little Lisp interpreter starting up")
+  (println "Ready for use")
+  (loop [line (read-line)]
+    (if (= "quit" (str/lower-case line))
+      (println "Quitting.")
+      (do
+        (println ">> " line)
+        (println (evaluate (vectorify (tokenize line))))
+        (recur (read-line))))))
 
