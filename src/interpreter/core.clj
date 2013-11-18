@@ -37,6 +37,10 @@
   [token]
   (= token "if"))
 
+(defn is-def?
+  [token]
+  (= token "def"))
+
 (defn tag
   [token]
   (let [operator (operator-map token)
@@ -44,14 +48,16 @@
         num-literal (num-literal token)
         bool (bool-map token)
         builtin (builtin-map token)
-        is-if (is-if? token)]
+        is-if (is-if? token)
+        is-def (is-def? token)]
   (cond
     (not (nil? operator)) {:type :operator :value operator}
     (not (nil? str-literal)) {:type :literal :value str-literal}
     (not (nil? num-literal)) {:type :literal :value num-literal}
     (not (nil? bool)) {:type :bool :value bool}
     (not (nil? builtin)) {:type :builtin :value builtin}
-    (not (nil? is-if)) {:type :if}
+    (true? is-if) {:type :if}
+    (true? is-def) {:type :def} 
     :else {:type :identifier :value token})))
 
 ;; TOKENIZING
@@ -126,17 +132,34 @@
   (cond 
     (= :literal (:type expr)) :literal
     (= :list (:type expr)) :list
+    (= :identifier (:type expr)) :identifier
     (= :if (:type (first expr))) :if
+    (= :def (:type (first expr))) :def
     :else :call))
 
 (defmulti evaluate get-type)
+
+(defmethod evaluate :identifier
+  [env expr]
+  ;; (println "IDENTIFIER")
+  ;; (println env)
+  ;; (println expr)
+  (let [key (keyword (:value expr))]
+    (if (contains? @env key)
+      (@env key)
+      (println "ERROR - undefined var"))))
+
+(defmethod evaluate :def
+  [env [def-expr name value-expr]]
+  (let [value (evaluate env value-expr)]
+    (swap! env assoc (keyword (:value name)) value)
+    nil))
 
 (defmethod evaluate :if
   [env [if-obj cond true-expr false-expr :as expr]]
   ;; (println "IF")
   ;; (println expr)
   (if (evaluate env cond)
-    
     (evaluate env true-expr)
     (if false-expr
       (evaluate env false-expr))))
