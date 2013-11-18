@@ -120,8 +120,9 @@
 ;; EVALUATING
 
 (defn get-type
-  [expr]
+  [env expr]
   ;; (println expr)
+  ;; (print env)
   (cond 
     (= :literal (:type expr)) :literal
     (= :list (:type expr)) :list
@@ -131,35 +132,32 @@
 (defmulti evaluate get-type)
 
 (defmethod evaluate :if
-  [[if-obj cond true-expr false-expr :as expr]]
+  [env [if-obj cond true-expr false-expr :as expr]]
   ;; (println "IF")
   ;; (println expr)
-  (if (evaluate cond)
-    (evaluate true-expr)
+  (if (evaluate env cond)
+    
+    (evaluate env true-expr)
     (if false-expr
-      (evaluate false-expr))))
+      (evaluate env false-expr))))
 
 (defmethod evaluate :call
-  [expr]
+  [env expr]
   ;; (println "CALL")
   ;; (println expr)
   ;; (println (:type (first expr)))
   (let [function (first expr)]
-    (apply (function :value) (map #(evaluate %) (rest expr)))))
+    (apply (function :value) (map #(evaluate env %) (rest expr)))))
 
 (defmethod evaluate :literal
-  [expr]
+  [env expr]
   ;; (println "LITERAL")
   ;; (println expr)
   (:value expr))
 
 (defmethod evaluate :list
-  [expr]
-  (map #(evaluate %) (:value expr)))
-
-(defn run
-  [line]
-  (evaluate (vectorify (tokenize line))))
+  [env expr]
+  (map #(evaluate env %) (:value expr)))
 
 ;; (defn -main
 ;;   [& args]
@@ -174,15 +172,17 @@
   [& args]
   (println "Little Lisp interpreter starting up")
   (println "Ready for use")
-  (loop [line (read-line)]
-    (if (= "quit" (str/lower-case line))
-      (println "Quitting.")
-      (do
-        (println ">> " line)
-        (let [vec (vectorify (tokenize line))]
-          ;; (println "VEC")
-          ;; (println vec)
-          (println (evaluate (vectorify (tokenize line)))))
-        (recur (read-line))))))
+  (let [env (atom {})]
+    (loop [line (read-line)]
+      (if (= "quit" (str/lower-case line))
+        (println "Quitting.")
+        (do
+          (println ">> " line)
+          (let [vec (vectorify (tokenize line))]
+            ;; (println "VEC")
+            ;; (println vec)
+            (println (evaluate env (vectorify (tokenize line)))))
+          (recur (read-line)))))))
 
 
+(def expr (vectorify (tokenize "(+ 1 2)")))
