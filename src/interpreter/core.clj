@@ -1,3 +1,7 @@
+;; On scoping - the env-stack grows from right to left i.e
+;; the right-most env is the global environment and the left-most
+;; env is the innermost scope.
+
 (ns interpreter.core
   (:gen-class)
   (:require [clojure.string :as str]))
@@ -12,8 +16,7 @@
   "first" first
   "last" last
   "not" not
-  "rest" rest
-  "type" type})
+  "rest" rest})
 
 (defn is-vector?
   [item]
@@ -125,14 +128,38 @@
     (let [spaced-out (remove-blanks (str/replace string #"[\[\]()]" #(str " " % " ")))]
       spaced-out))
 
-;; EVALUATING
+;; scoping helper methods
+
+(defn get-global-scope
+  "returns the global scope"
+  [env-stack]
+  (last (:scopes @env-stack)))
+
+(defn modify-global-scope
+  "Modifies the global scope in env-stack"
+  [env-stack modification]
+  (let [old-scopes (:scopes @env-stack)
+        old-global-scope (get-global-scope env-stack)
+        new-global-scope (merge old-global-scope modification)]
+    (let [new-scopes (assoc (into [] old-scopes) (- (count old-scopes) 1) new-global-scope)]
+      (swap! env-stack assoc :scopes new-scopes))))
+
+(defn add-new-local-scope
+  [new-scope env-stack]
+  (swap! env-stack assoc :scopes (cons new-scope (:scopes @env-stack))))
 
 (defn get-identifier-value
-  [env id]
-  (@env (keyword id)))
+  "gets the most local value of the identifier if it exists, otherwise nil"
+  [env-stack id]
+  (let [scope (first (filter #(not (nil? (% id))) (:scopes @env-stack)))]
+    (if (not (nil? scope))
+      (id scope)
+      nil)))
+
+;; EVALUATING
 
 (defn get-type
-  [env expr]
+  [env-stack expr]
   ;; (println expr)
   ;; (print env)
   (cond
@@ -143,65 +170,69 @@
    (= :identifier (:type (first expr))) :solitary-identifier
    (= :if (:type (first expr))) :if
    (= :def (:type (first expr))) :def
+   (= :let (:type (first expr))) :let
    :else :call))
 
 (defmulti evaluate get-type)
 
+(defmethod evaluate :let
+  [env-stack expr]
+  )
+
 (defmethod evaluate :solitary-identifier
-  [env expr]
+  [env-stack expr]
   (let [key (keyword (:value (first expr)))
-        value (get-identifier-value env key)]
+        value (get-identifier-value env-stack key)]
     (if (nil? value)
       (println "ERROR - undefined var")
       value)))
 
 (defmethod evaluate :identifier
-  [env expr]
-  ;; (println "IDENTIFIER")
-  ;; (println env)
-  ;; (println expr)
+  [env-stack expr]
+  (println "IDENTIFIER")
+  (println env-stack)
+  (println expr)
   (let [key (keyword (:value expr))
-        value (get-identifier-value env key)]
+        value (get-identifier-value env-stack key)]
     (if (nil? value)
       (println "ERROR - undefined var")
       value)))
 
 (defmethod evaluate :def
-  [env [def-expr name value-expr]]
-  (let [value (evaluate env value-expr)]
-    (swap! env assoc (keyword (:value name)) value)
+  [env-stack [def-expr name value-expr]]
+  (let [value (evaluate env-stack value-expr)]
+    (modify-global-scope env-stack {(keyword (:value name)) value})
     nil))
 
 (defmethod evaluate :if
-  [env [if-obj cond true-expr false-expr :as expr]]
+  [env-stack [if-obj cond true-expr false-expr :as expr]]
   ;; (println "IF")
   ;; (println expr)
-  (if (evaluate env cond)
-    (evaluate env true-expr)
+  (if (evaluate env-stack cond)
+    (evaluate env-stack true-expr)
     (if false-expr
-      (evaluate env false-expr))))
+      (evaluate env-stack false-expr))))
 
 (defmethod evaluate :call
-  [env expr]
+  [env-stack expr]
   (println "CALL")
   (println expr)
-  (println (:type (first expr)))
   (let [function (first expr)]
-    (apply (function :value) (map #(evaluate env %) (rest expr)))))
+    (apply (function :value) (map #(evaluate env-stack %) (rest expr)))))
 
 (defmethod evaluate :literal
-  [env expr]
+  [env-stack expr]
   (println "LITERAL")
   (println expr)
   (:value expr))
 
 (defmethod evaluate :solitary-literal
-  [env expr]
+  [env-stack expr]
   (:value (first expr)))
 
 (defmethod evaluate :list
-  [env expr]
-  (map #(evaluate env %) (:value expr)))
+  [env-stack expr]
+  (map #(evaluate env-stack %) (:value expr)))
 
 ;; (defn -main
 ;;   [& args]
@@ -216,7 +247,7 @@
   [& args]
   (println "Little Lisp interpreter starting up")
   (println "Ready for use")
-  (let [env (atom {})]
+  (let [env-stack (atom {:scopes [{}]})]
     (loop [line (read-line)]
       (if (= "quit" (str/lower-case line))
         (println "Quitting.")
