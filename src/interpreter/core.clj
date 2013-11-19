@@ -87,32 +87,34 @@
 
 ;; basically implements the built-in "read-string" function
 ;; need to figure out error checking with parentheses
-;; not working from the terminal, but works in the REPL
 (defn vectorify
   [tokens]
-  (loop [i 0
-         stack []]
-   (if (>= i (count tokens))
-     (do 
-       (if (= (last tokens) ")")
-        (first stack)
-        (do 
-          (println "ERROR")
-          (System/exit -1)))))
-    (do (let [t (nth tokens i)]
-        (cond 
-          (= t "(") (recur (inc i) (into [] (cons [] stack)))
-          (or (= t ")") (= t "]"))
-            (do (let [top-vec (first stack)
-                      stack (rest stack)]                  
-                  (if (empty? stack)
-                    top-vec
-                    (do (let [next-vec (first stack) stack (rest stack)]
-                      (recur (inc i) (into [] (cons (insert-into-top next-vec top-vec) stack))))))))
-          (= t "[") (recur (inc i) (into [] (cons {:type :list :value []} stack)))
-          :else 
-            (do (let [curr-struct (first stack)]
-                (recur (inc i) (assoc stack 0 (insert-into-top curr-struct (tag t)))))))))))
+  (if (== 1 (count tokens))
+    [(tag (first tokens))]
+    (do
+      (loop [i 0
+             stack []]
+        (if (>= i (count tokens))
+          (do
+            (if (= (last tokens) ")")
+              (first stack)
+              (do
+                (println "ERROR")
+                (System/exit -1)))))
+        (do (let [t (nth tokens i)]
+              (cond
+               (= t "(") (recur (inc i) (into [] (cons [] stack)))
+               (or (= t ")") (= t "]"))
+               (do (let [top-vec (first stack)
+                         stack (rest stack)]
+                     (if (empty? stack)
+                       top-vec
+                       (do (let [next-vec (first stack) stack (rest stack)]
+                             (recur (inc i) (into [] (cons (insert-into-top next-vec top-vec) stack))))))))
+               (= t "[") (recur (inc i) (into [] (cons {:type :list :value []} stack)))
+               :else
+               (do (let [curr-struct (first stack)]
+                     (recur (inc i) (assoc stack 0 (insert-into-top curr-struct (tag t)))))))))))))
 
 (defn remove-blanks
   [string]
@@ -125,29 +127,44 @@
 
 ;; EVALUATING
 
+(defn get-identifier-value
+  [env id]
+  (@env (keyword id)))
+
 (defn get-type
   [env expr]
   ;; (println expr)
   ;; (print env)
-  (cond 
-    (= :literal (:type expr)) :literal
-    (= :list (:type expr)) :list
-    (= :identifier (:type expr)) :identifier
-    (= :if (:type (first expr))) :if
-    (= :def (:type (first expr))) :def
-    :else :call))
+  (cond
+   (= :literal (:type (first expr))) :solitary-literal
+   (= :literal (:type expr)) :literal
+   (= :list (:type expr)) :list
+   (= :identifier (:type expr)) :identifier
+   (= :identifier (:type (first expr))) :solitary-identifier
+   (= :if (:type (first expr))) :if
+   (= :def (:type (first expr))) :def
+   :else :call))
 
 (defmulti evaluate get-type)
+
+(defmethod evaluate :solitary-identifier
+  [env expr]
+  (let [key (keyword (:value (first expr)))
+        value (get-identifier-value env key)]
+    (if (nil? value)
+      (println "ERROR - undefined var")
+      value)))
 
 (defmethod evaluate :identifier
   [env expr]
   ;; (println "IDENTIFIER")
   ;; (println env)
   ;; (println expr)
-  (let [key (keyword (:value expr))]
-    (if (contains? @env key)
-      (@env key)
-      (println "ERROR - undefined var"))))
+  (let [key (keyword (:value expr))
+        value (get-identifier-value env key)]
+    (if (nil? value)
+      (println "ERROR - undefined var")
+      value)))
 
 (defmethod evaluate :def
   [env [def-expr name value-expr]]
@@ -166,17 +183,21 @@
 
 (defmethod evaluate :call
   [env expr]
-  ;; (println "CALL")
-  ;; (println expr)
-  ;; (println (:type (first expr)))
+  (println "CALL")
+  (println expr)
+  (println (:type (first expr)))
   (let [function (first expr)]
     (apply (function :value) (map #(evaluate env %) (rest expr)))))
 
 (defmethod evaluate :literal
   [env expr]
-  ;; (println "LITERAL")
-  ;; (println expr)
+  (println "LITERAL")
+  (println expr)
   (:value expr))
+
+(defmethod evaluate :solitary-literal
+  [env expr]
+  (:value (first expr)))
 
 (defmethod evaluate :list
   [env expr]
@@ -209,3 +230,4 @@
 
 
 (def expr (vectorify (tokenize "(+ 1 2)")))
+(def d (tokenize "(def x 2)"))
