@@ -44,6 +44,14 @@
   [token]
   (= token "def"))
 
+(defn is-let?
+  [token]
+  (= token "let"))
+
+(defn is-identifier?
+  [token]
+  (= :identifier (:type token)))
+
 (defn tag
   [token]
   (let [operator (operator-map token)
@@ -52,7 +60,8 @@
         bool (bool-map token)
         builtin (builtin-map token)
         is-if (is-if? token)
-        is-def (is-def? token)]
+        is-def (is-def? token)
+        is-let (is-let? token)]
   (cond
     (not (nil? operator)) {:type :operator :value operator}
     (not (nil? str-literal)) {:type :literal :value str-literal}
@@ -60,7 +69,8 @@
     (not (nil? bool)) {:type :bool :value bool}
     (not (nil? builtin)) {:type :builtin :value builtin}
     (true? is-if) {:type :if}
-    (true? is-def) {:type :def} 
+    (true? is-def) {:type :def}
+    (true? is-let) {:type :let}
     :else {:type :identifier :value token})))
 
 ;; TOKENIZING
@@ -148,6 +158,10 @@
   [new-scope env-stack]
   (swap! env-stack assoc :scopes (cons new-scope (:scopes @env-stack))))
 
+(defn remove-most-recent-scope
+  [env-stack]
+  (swap! env-stack assoc :scopes (rest (:scopes @env-stack))))
+
 (defn get-identifier-value
   "gets the most local value of the identifier if it exists, otherwise nil"
   [env-stack id]
@@ -155,6 +169,20 @@
     (if (not (nil? scope))
       (id scope)
       nil)))
+
+(defn get-identifier-keyword
+  "Given an identifier, returns the keyword of its value"
+  [id]
+  (keyword (:value id)))
+
+(defn add-let-var
+  [curr-map [id value-expr] env-stack]
+  (merge curr-map {(get-identifier-keyword id) (evaluate env-stack value-expr)}))
+
+(defn get-let-vars
+  [[let-expr let-list & rest] env-stack]
+  (let [var-list (:value let-list)]
+    (reduce (fn [curr-map var-item] (add-let-var curr-map var-item env-stack)) {} (partition 2 var-list))))
 
 ;; EVALUATING
 
@@ -176,12 +204,17 @@
 (defmulti evaluate get-type)
 
 (defmethod evaluate :let
-  [env-stack expr]
-  )
+  [env-stack [let-expr let-list & exprs :as expr]]
+  (add-new-local-scope (get-let-vars expr env-stack) env-stack)
+  (doseq [expr (subvec (into [] exprs) 0 (- (count exprs) 1))]
+    (evaluate env-stack expr))
+  (let [ret-val (evaluate env-stack (last exprs))]
+    (remove-most-recent-scope env-stack)
+    ret-val))
 
 (defmethod evaluate :solitary-identifier
   [env-stack expr]
-  (let [key (keyword (:value (first expr)))
+  (let [key (get-identifier-keyword (first expr))
         value (get-identifier-value env-stack key)]
     (if (nil? value)
       (println "ERROR - undefined var")
@@ -189,11 +222,12 @@
 
 (defmethod evaluate :identifier
   [env-stack expr]
-  (println "IDENTIFIER")
-  (println env-stack)
-  (println expr)
-  (let [key (keyword (:value expr))
+  ;; (println "IDENTIFIER")
+  ;; (println env-stack)
+  ;; (println expr)
+  (let [key (get-identifier-keyword expr)
         value (get-identifier-value env-stack key)]
+    ;; (println value)
     (if (nil? value)
       (println "ERROR - undefined var")
       value)))
@@ -201,7 +235,7 @@
 (defmethod evaluate :def
   [env-stack [def-expr name value-expr]]
   (let [value (evaluate env-stack value-expr)]
-    (modify-global-scope env-stack {(keyword (:value name)) value})
+    (modify-global-scope env-stack {(get-identifier-keyword name) value})
     nil))
 
 (defmethod evaluate :if
@@ -215,15 +249,17 @@
 
 (defmethod evaluate :call
   [env-stack expr]
-  (println "CALL")
-  (println expr)
+  ;; (println "ENV_STACK")
+  ;; (println env-stack)
+  ;; (println "CALL")
+  ;; (println expr)
   (let [function (first expr)]
     (apply (function :value) (map #(evaluate env-stack %) (rest expr)))))
 
 (defmethod evaluate :literal
   [env-stack expr]
-  (println "LITERAL")
-  (println expr)
+  ;; (println "LITERAL")
+  ;; (println expr)
   (:value expr))
 
 (defmethod evaluate :solitary-literal
@@ -256,9 +292,13 @@
           (let [vec (vectorify (tokenize line))]
             ;; (println "VEC")
             ;; (println vec)
-            (println (evaluate env (vectorify (tokenize line)))))
+            (println (evaluate env-stack (vectorify (tokenize line)))))
           (recur (read-line)))))))
 
 
 (def expr (vectorify (tokenize "(+ 1 2)")))
 (def d (tokenize "(def x 2)"))
+(def l (tokenize "(let [x 2
+y 3] x)"))
+(def ll (tokenize "(let [x (+ 1 1)] (* 3 x))"))
+(def var-list (:value (nth (vectorify l) 1)))
