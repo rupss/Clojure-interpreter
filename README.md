@@ -22,7 +22,7 @@ Right now, this interpreter handles:
 - <code>let</code> statements
 - vectors and the <code>conj, cons, first, last, rest</code> functions
 
-At present, its error handling is minimal and it doesn't like newlines. This will change soon.
+At present, its error handling is minimal. This will change soon.
 
 ## License
 
