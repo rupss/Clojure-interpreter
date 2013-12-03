@@ -18,6 +18,8 @@
   "not" not
   "rest" rest})
 
+(declare evaluate)
+
 (defn is-vector?
   [item]
   (= clojure.lang.PersistentVector (type item)))
@@ -100,7 +102,7 @@
 
 ;; basically implements the built-in "read-string" function
 ;; need to figure out error checking with parentheses
-(defn vectorify
+(defn vectorize
   [tokens]
   (if (== 1 (count tokens))
     [(tag (first tokens))]
@@ -217,7 +219,7 @@
   (let [key (get-identifier-keyword (first expr))
         value (get-identifier-value env-stack key)]
     (if (nil? value)
-      (println "ERROR - undefined var")
+      (println "ERROR - undefined symbol")
       value)))
 
 (defmethod evaluate :identifier
@@ -229,7 +231,7 @@
         value (get-identifier-value env-stack key)]
     ;; (println value)
     (if (nil? value)
-      (println "ERROR - undefined var")
+      (println "ERROR - undefined symbol")
       value)))
 
 (defmethod evaluate :def
@@ -270,35 +272,62 @@
   [env-stack expr]
   (map #(evaluate env-stack %) (:value expr)))
 
-;; (defn -main
-;;   [& args]
-;;   (clojure.main/repl :init (fn [] (println "Little Lisp interpreter starting up"))
-;;                      :eval (fn [x] (run x))
-;;                      :prompt (fn [] (print ">> "))
-;;                      :read (fn [request-prompt request-exit]
-;;                              (let [form (clojure.main/repl-read request-prompt request-exit)]
-;;                                (if (= 'exit form) request-exit form)))))
+;;;;;;
+
+(defn sublist
+  [my-list start & end]
+  (if (empty? end)
+    (subvec (into [] my-list) start)
+    (subvec (into [] my-list) start (first end))))
+
+(def matching-parens {\) \(
+                     \] \[})
+
+(defn is-balanced?
+  [input]
+  (if (empty? input)
+    true)
+  (do
+    (loop [i 0
+           stack []]
+      (if (== i (count input))
+        (empty? stack)
+        (let [curr (nth input i)]
+          (if (or (= curr \() (= curr \[))
+            (recur (inc i) (cons curr stack))
+            (if (or (= curr \)) (= curr \]))
+              (if (= (matching-parens curr) (first stack))
+                (recur (inc i) (rest stack))
+                false))))))))
+
+(defn correct-parentheses?
+  [input]
+  (let [parens-only (str/replace input #"[^()\[\]]" "")]
+    (and (= (first parens-only) \() (= (last parens-only) \)) (is-balanced? (subs parens-only 1 (- (count parens-only) 1))))))
 
 (defn -main
   [& args]
-  (println "Little Lisp interpreter starting up")
-  (println "Ready for use")
-  (let [env-stack (atom {:scopes [{}]})]
+  (println "Little Clojure interpreter starting up")
+  (println "Ready for use. Type \"quit\" to exit.")
+  (let [env-stack (atom {:scopes [{}]})
+        all-input (atom {:line nil})]
     (loop [line (read-line)]
       (if (= "quit" (str/lower-case line))
         (println "Quitting.")
         (do
+          (swap! all-input assoc :line (str (@all-input :line) line))
           (println ">> " line)
-          (let [vec (vectorify (tokenize line))]
-            ;; (println "VEC")
-            ;; (println vec)
-            (println (evaluate env-stack (vectorify (tokenize line)))))
+          (if (correct-parentheses? (@all-input :line))
+            (do
+              (let [input (@all-input :line)]
+                (println (evaluate env-stack (vectorize (tokenize input))))
+                (swap! all-input assoc :line nil))))
           (recur (read-line)))))))
 
 
-(def expr (vectorify (tokenize "(+ 1 2)")))
+(def expr (vectorize (tokenize "(+ 1 2)")))
 (def d (tokenize "(def x 2)"))
 (def l (tokenize "(let [x 2
 y 3] x)"))
-(def ll (tokenize "(let [x (+ 1 1)] (* 3 x))"))
-(def var-list (:value (nth (vectorify l) 1)))
+(def ll (tokenize "(let [x (+ 1 1)] ((* 3 x))"))
+(def var-list (:value (nth (vectorize l) 1)))
